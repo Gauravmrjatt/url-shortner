@@ -1,34 +1,34 @@
-const mysql = require('mysql2/promise');
+const { MongoClient } = require('mongodb');
 
 class Database {
   constructor() {
-    this.pool = null;
+    this.client = null;
+    this.db = null;
   }
 
-  async getPool() {
-    if (!this.pool) {
-      this.pool = mysql.createPool({
-        host: process.env.DB_HOST || 'localhost',
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASS || '',
-        database: process.env.DB_NAME || 'url_shortener',
-        waitForConnections: true,
-        connectionLimit: 10,
-        queueLimit: 0
-      });
+  async connect() {
+    const uri = `mongodb://${process.env.DB_USER}:${process.env.DB_PASS}@${process.env.DB_HOST}:${process.env.DB_PORT || 27017}`;
+    this.client = new MongoClient(uri);
+    await this.client.connect();
+    this.db = this.client.db(process.env.DB_NAME || 'urlshortner');
+    return this.db;
+  }
+
+  async getDb() {
+    if (!this.db) {
+      await this.connect();
     }
-    return this.pool;
+    return this.db;
   }
 
-  async query(sql, params = []) {
-    const pool = await this.getPool();
-    const [rows] = await pool.execute(sql, params);
-    return rows;
+  async getCollection(name) {
+    const db = await this.getDb();
+    return db.collection(name);
   }
 
   async close() {
-    if (this.pool) {
-      await this.pool.end();
+    if (this.client) {
+      await this.client.close();
     }
   }
 }

@@ -14,7 +14,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Ahfhfhfwjejbf';
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
-const SHORT_CODE_LENGTH = parseInt(process.env.SHORT_CODE_LENGTH) || 6;
 
 app.locals.baseUrl = BASE_URL;
 
@@ -22,13 +21,13 @@ function isAuthorized(password) {
   return password === ADMIN_PASSWORD;
 }
 
-app.get('/', (req, res) => {
+app.get('/', async (req, res) => {
   const password = req.query.password;
   if (!isAuthorized(password)) {
     return res.redirect(`/my-links?password=${encodeURIComponent(password || '')}`);
   }
   
-  const urls = urlService.getAllUrls();
+  const urls = await urlService.getAllUrls();
   const totalClicks = urls.reduce((sum, url) => sum + url.clicks, 0);
   
   res.render('index', { 
@@ -39,7 +38,7 @@ app.get('/', (req, res) => {
   });
 });
 
-app.get('/my-links', (req, res) => {
+app.get('/my-links', async (req, res) => {
   const { password, search = '', page = 1 } = req.query;
   
   if (!isAuthorized(password)) {
@@ -49,8 +48,8 @@ app.get('/my-links', (req, res) => {
   const limit = 10;
   const offset = (parseInt(page) - 1) * limit;
   
-  const urls = urlService.searchUrls(search, limit, offset);
-  const totalUrls = urlService.getTotalUrls(search);
+  const urls = await urlService.searchUrls(search, limit, offset);
+  const totalUrls = await urlService.getTotalUrls(search);
   const totalPages = Math.ceil(totalUrls / limit);
   
   res.render('my-links', {
@@ -71,17 +70,17 @@ app.get('/short', (req, res) => {
     return res.render('login', { baseUrl: BASE_URL });
   }
   
-  res.render('short', { password, baseUrl: BASE_URL, error: null, successUrl: null });
+  res.render('short', { password, baseUrl: BASE_URL, error: null, successUrl: null, shortCode: null });
 });
 
-app.post('/short', (req, res) => {
+app.post('/short', async (req, res) => {
   const { password, url, custom_alias } = req.body;
   
   if (!isAuthorized(password)) {
     return res.render('login', { baseUrl: BASE_URL });
   }
   
-  const result = urlService.createShortUrl(url, custom_alias || null);
+  const result = await urlService.createShortUrl(url, custom_alias || null);
   
   if (result.success) {
     res.render('short', { 
@@ -96,19 +95,20 @@ app.post('/short', (req, res) => {
       password, 
       baseUrl: BASE_URL, 
       error: result.error, 
-      successUrl: null 
+      successUrl: null,
+      shortCode: null
     });
   }
 });
 
-app.get('/stats', (req, res) => {
+app.get('/stats', async (req, res) => {
   const { password, code } = req.query;
   
   if (!isAuthorized(password)) {
     return res.render('login', { baseUrl: BASE_URL });
   }
   
-  const stats = urlService.getStats(code);
+  const stats = await urlService.getStats(code);
   
   if (!stats.success) {
     return res.redirect(`/my-links?password=${encodeURIComponent(password)}`);
@@ -120,7 +120,7 @@ app.get('/stats', (req, res) => {
 app.get('/s/:code', async (req, res) => {
   const { code } = req.params;
   
-  const url = urlService.getUrlByCode(code);
+  const url = await urlService.getUrlByCode(code);
   
   if (!url) {
     return res.status(404).send('URL not found');
@@ -138,20 +138,20 @@ app.get('/s/:code', async (req, res) => {
   const userAgent = req.get('user-agent') || null;
   const ipAddress = req.ip || req.connection.remoteAddress;
   
-  urlService.incrementClick(url.id);
-  urlService.logClick(url.id, referer, userAgent, ipAddress);
+  await urlService.incrementClick(url.id);
+  await urlService.logClick(url.id, referer, userAgent, ipAddress);
   
   res.redirect(url.original_url);
 });
 
-app.post('/api/shorten', (req, res) => {
+app.post('/api/shorten', async (req, res) => {
   const { url, custom_alias, expires_at } = req.body;
   
   if (!url) {
     return res.status(400).json({ success: false, error: 'URL is required' });
   }
   
-  const result = urlService.createShortUrl(url, custom_alias || null, null, expires_at || null);
+  const result = await urlService.createShortUrl(url, custom_alias || null, null, expires_at || null);
   
   if (result.success) {
     res.status(201).json({ success: true, data: result.data });
@@ -160,14 +160,14 @@ app.post('/api/shorten', (req, res) => {
   }
 });
 
-app.get('/api/list', (req, res) => {
-  const urls = urlService.getAllUrls();
+app.get('/api/list', async (req, res) => {
+  const urls = await urlService.getAllUrls();
   res.json({ success: true, data: urls });
 });
 
-app.get('/api/stats/:code', (req, res) => {
+app.get('/api/stats/:code', async (req, res) => {
   const { code } = req.params;
-  const stats = urlService.getStats(code);
+  const stats = await urlService.getStats(code);
   
   if (stats.success) {
     res.json(stats);

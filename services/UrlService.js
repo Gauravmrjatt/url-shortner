@@ -34,19 +34,17 @@ class UrlService {
   }
 
   async codeExists(shortCode) {
-    const rows = await database.query(
-      'SELECT COUNT(*) as count FROM urls WHERE short_code = ? OR custom_alias = ?',
-      [shortCode, shortCode]
-    );
-    return rows[0].count > 0;
+    const collection = await database.getCollection('urls');
+    const count = await collection.countDocuments({
+      $or: [{ short_code: shortCode }, { custom_alias: shortCode }]
+    });
+    return count > 0;
   }
 
   async aliasExists(alias) {
-    const rows = await database.query(
-      'SELECT COUNT(*) as count FROM urls WHERE custom_alias = ?',
-      [alias]
-    );
-    return rows[0].count > 0;
+    const collection = await database.getCollection('urls');
+    const count = await collection.countDocuments({ custom_alias: alias });
+    return count > 0;
   }
 
   async createShortUrl(originalUrl, customAlias = null, userId = null, expiresAt = null) {
@@ -78,14 +76,22 @@ class UrlService {
     }
 
     try {
-      const result2 = await database.query(
-        'INSERT INTO urls (original_url, short_code, custom_alias, user_id, expires_at) VALUES (?, ?, ?, ?, ?)',
-        [originalUrl, shortCode, customAlias || null, userId, expiresAt]
-      );
-
-      const url = await this.getUrlByCode(shortCode);
+      const collection = await database.getCollection('urls');
+      const urlDoc = {
+        original_url: originalUrl,
+        short_code: shortCode,
+        custom_alias: customAlias || null,
+        clicks: 0,
+        created_at: new Date(),
+        expires_at: expiresAt ? new Date(expiresAt) : null,
+        is_active: true,
+        user_id: userId || null
+      };
+      
+      await collection.insertOne(urlDoc);
+      
       result.success = true;
-      result.data = url.toApiArray();
+      result.data = this.toApiArray(urlDoc);
     } catch (error) {
       result.error = 'Failed to create short URL';
     }
@@ -94,21 +100,28 @@ class UrlService {
   }
 
   async getUrlByCode(shortCode) {
-    const rows = await database.query(
-      'SELECT * FROM urls WHERE short_code = ? OR custom_alias = ?',
-      [shortCode, shortCode]
-    );
-    return rows.length > 0 ? new Url(rows[0], this.baseUrl) : null;
+    const collection = await database.getCollection('urls');
+    const url = await collection.findOne({
+      $or: [{ short_code: shortCode }, { custom_alias: shortCode }]
+    });
+    return url ? this.toApiArray(url) : null;
   }
 
   async getUrlById(id) {
-    const rows = await database.query('SELECT * FROM urls WHERE id = ?', [id]);
-    return rows.length > 0 ? new Url(rows[0], this.baseUrl) : null;
+    const collection = await database.getCollection('urls');
+    const { ObjectId } = require('mongodb');
+    const url = await collection.findOne({ _id: new ObjectId(id) });
+    return url ? this.toApiArray(url) : null;
   }
 
   async incrementClick(urlId) {
     try {
-      await database.query('UPDATE urls SET clicks = clicks + 1 WHERE id = ?', [urlId]);
+      const collection = await database.getCollection('urls');
+      const { ObjectId } = require('mongodb');
+      await collection.updateOne(
+        { _id: new ObjectId(urlId) },
+        { $inc: { clicks: 1 } }
+      );
       return true;
     } catch {
       return false;
@@ -117,10 +130,15 @@ class UrlService {
 
   async logClick(urlId, referer = null, userAgent = null, ipAddress = null) {
     try {
-      await database.query(
-        'INSERT INTO click_logs (url_id, referer, user_agent, ip_address) VALUES (?, ?, ?, ?)',
-        [urlId, referer, userAgent, ipAddress]
-      );
+      const collection = await database.getCollection('click_logs');
+      const { ObjectId } = require('mongodb');
+      await collection.insertOne({
+        url_id: new ObjectId(urlId),
+        clicked_at: new Date(),
+        referer,
+        user_agent: userAgent,
+        ip_address: ipAddress
+      });
       return true;
     } catch {
       return false;
@@ -136,103 +154,86 @@ class UrlService {
       return result;
     }
 
-    const logs = await database.query(
-      'SELECT MAX(clicked_at) as last_clicked FROM click_logs WHERE url_id = ?',
-      [url.id]
+    const logsCollection = await database.getCollection('click_logs');
+    const { ObjectId } = require('mongodb');
+    const lastClick = await logsCollection.findOne(
+      { url_id: new ObjectId(url.id) },
+      { sort: { clicked_at: -1 } }
     );
 
     result.success = true;
     result.data = {
-      short_code: url.shortCode,
-      original_url: url.originalUrl,
-      short_url: url.shortUrl,
+      short_code: url.short_code,
+      original_url: url.original_url,
+      short_url: url.short_url,
       clicks: url.clicks,
-      created_at: url.createdAt,
-      last_clicked: logs[0].last_clicked || null,
-      expires_at: url.expiresAt
+      created_at: url.created_at,
+      last_clicked: lastClick ? lastClick.clicked_at : null,
+      expires_at: url.expires_at
     };
 
     return result;
   }
 
   async getAllUrls(userId = null) {
-    let rows;
+    const collection = await database.getCollection('urls');
+    let query = {};
     if (userId) {
-      rows = await database.query('SELECT * FROM urls WHERE user_id = ? ORDER BY created_at DESC LIMIT 100', [userId]);
-    } else {
-      rows = await database.query('SELECT * FROM urls ORDER BY created_at DESC LIMIT 100');
+      query.user_id = userId;
     }
-    return rows.map(row => new Url(row, this.baseUrl).toApiArray());
+    const cursor = collection.find(query).sort({ created_at: -1 }).limit(100);
+    const urls = await cursor.toArray();
+    return urls.map(url => this.toApiArray(url));
   }
 
   async searchUrls(search = '', limit = 10, offset = 0) {
-    let rows;
+    const collection = await database.getCollection('urls');
+    let query = {};
     if (search) {
-      rows = await database.query(
-        'SELECT * FROM urls WHERE short_code LIKE ? OR custom_alias LIKE ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
-        [`%${search}%`, `%${search}%`, limit, offset]
-      );
-    } else {
-      rows = await database.query(
-        'SELECT * FROM urls ORDER BY created_at DESC LIMIT ? OFFSET ?',
-        [limit, offset]
-      );
+      query.$or = [
+        { short_code: { $regex: search, $options: 'i' } },
+        { custom_alias: { $regex: search, $options: 'i' } }
+      ];
     }
-    return rows.map(row => new Url(row, this.baseUrl).toApiArray());
+    const cursor = collection.find(query).sort({ created_at: -1 }).skip(offset).limit(limit);
+    const urls = await cursor.toArray();
+    return urls.map(url => this.toApiArray(url));
   }
 
   async getTotalUrls(search = '') {
-    let rows;
+    const collection = await database.getCollection('urls');
+    let query = {};
     if (search) {
-      rows = await database.query(
-        'SELECT COUNT(*) as total FROM urls WHERE short_code LIKE ? OR custom_alias LIKE ?',
-        [`%${search}%`, `%${search}%`]
-      );
-    } else {
-      rows = await database.query('SELECT COUNT(*) as total FROM urls');
+      query.$or = [
+        { short_code: { $regex: search, $options: 'i' } },
+        { custom_alias: { $regex: search, $options: 'i' } }
+      ];
     }
-    return rows[0].total;
+    return await collection.countDocuments(query);
   }
 
   async deleteUrl(id) {
     try {
-      await database.query('DELETE FROM urls WHERE id = ?', [id]);
+      const collection = await database.getCollection('urls');
+      const { ObjectId } = require('mongodb');
+      await collection.deleteOne({ _id: new ObjectId(id) });
       return true;
     } catch {
       return false;
     }
   }
-}
 
-class Url {
-  constructor(row, baseUrl) {
-    this.id = row.id;
-    this.originalUrl = row.original_url;
-    this.shortCode = row.short_code;
-    this.customAlias = row.custom_alias;
-    this.clicks = row.clicks;
-    this.createdAt = row.created_at;
-    this.expiresAt = row.expires_at;
-    this.isActive = row.is_active;
-    this.userId = row.user_id;
-    this.baseUrl = baseUrl;
-  }
-
-  getShortUrl() {
-    return `${this.baseUrl}/s/${this.shortCode}`;
-  }
-
-  toApiArray() {
+  toApiArray(url) {
     return {
-      id: this.id,
-      original_url: this.originalUrl,
-      short_code: this.shortCode,
-      custom_alias: this.customAlias,
-      short_url: this.getShortUrl(),
-      clicks: this.clicks,
-      created_at: this.createdAt,
-      expires_at: this.expiresAt,
-      is_active: this.isActive
+      id: url._id ? url._id.toString() : url.id,
+      original_url: url.original_url,
+      short_code: url.short_code,
+      custom_alias: url.custom_alias,
+      short_url: `${this.baseUrl}/s/${url.short_code}`,
+      clicks: url.clicks,
+      created_at: url.created_at,
+      expires_at: url.expires_at,
+      is_active: url.is_active
     };
   }
 }

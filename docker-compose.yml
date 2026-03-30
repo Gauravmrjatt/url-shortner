@@ -2,29 +2,19 @@ version: '3.8'
 
 services:
   web:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-    volumes:
-      - ./:/var/www/html
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf
-    depends_on:
-      - php
-    networks:
-      - urlshortner
-
-  php:
     build:
       context: .
       dockerfile: Dockerfile
-    volumes:
-      - ./:/var/www/html
+    ports:
+      - "3000:3000"
     environment:
       DB_HOST: db
-      DB_NAME: url_shortener
       DB_USER: url_user
       DB_PASS: url_password
-      BASE_URL: http://localhost
+      DB_NAME: url_shortener
+      BASE_URL: http://localhost:3000
+      ADMIN_PASSWORD: Ahfhfhfwjejbf
+      SHORT_CODE_LENGTH: 6
     depends_on:
       - db
     networks:

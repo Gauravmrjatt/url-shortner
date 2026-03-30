@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stats - Osm-it</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --cream: #ede8e1;
+      --white: #faf8f5;
+      --sand: #c9a98a;
+      --sand-light: #e8d8c6;
+      --brown: #7b5c3c;
+      --brown-dark: #5a4028;
+      --text: #2a1e10;
+      --text-muted: #9a8470;
+      --border: #dfd0bc;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'DM Sans', sans-serif; background: var(--cream); min-height: 100vh; padding: 20px 12px; }
+    .container { max-width: 700px; margin: 0 auto; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .page-logo { font-family: 'DM Serif Display', serif; font-size: 20px; color: var(--text); }
+    .back-btn { font-family: 'DM Sans', sans-serif; font-size: 12px; color: var(--text-muted); text-decoration: none; padding: 8px 16px; border-radius: 8px; }
+    .back-btn:hover { background: var(--sand-light); color: var(--text); }
+    .page-title { font-family: 'DM Serif Display', serif; font-size: 18px; color: var(--text); margin-bottom: 20px; }
+    .stats-card { background: var(--white); border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(80,50,20,0.08); }
+    .stat-row { display: flex; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid var(--border); }
+    .stat-row:last-child { border-bottom: none; }
+    .stat-label { font-size: 13px; color: var(--text-muted); }
+    .stat-value { font-size: 13px; font-weight: 600; color: var(--text); text-align: right; word-break: break-all; max-width: 60%; }
+    .stat-value.link { color: var(--brown); }
+    .copy-btn { font-family: 'DM Sans', sans-serif; font-size: 10px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; background: transparent; color: var(--text); cursor: pointer; margin-left: 8px; }
+    .copy-btn:hover { background: var(--sand-light); }
+    .big-stat { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 24px; border-radius: 12px; text-align: center; margin-bottom: 20px; }
+    .big-stat .number { font-size: 48px; font-weight: 700; }
+    .big-stat .label { font-size: 14px; opacity: 0.9; }
+    .actions { margin-top: 20px; display: flex; gap: 12px; }
+    .action-btn { flex: 1; padding: 12px; border-radius: 8px; border: none; background: var(--brown); color: #fff; font-size: 13px; font-weight: 500; cursor: pointer; text-align: center; text-decoration: none; font-family: 'DM Sans', sans-serif; }
+    .action-btn:hover { background: var(--brown-dark); }
+    @media (min-width: 600px) { body { padding: 40px 24px; } .page-logo { font-size: 22px; } .page-title { font-size: 20px; } .stats-card { padding: 24px; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="page-header">
+      <span class="page-logo">Osm-it</span>
+      <a href="/my-links?password=<%= password %>" class="back-btn">← Back</a>
+    </div>
+
+    <h2 class="page-title">URL Stats</h2>
+
+    <div class="big-stat">
+      <div class="number"><%= stats.clicks.toLocaleString() %></div>
+      <div class="label">Total Clicks</div>
+    </div>
+
+    <div class="stats-card">
+      <div class="stat-row">
+        <span class="stat-label">Short URL</span>
+        <span class="stat-value link">
+          <%= stats.short_url %>
+          <button class="copy-btn" onclick="copyLink('<%= stats.short_url %>')">Copy</button>
+        </span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Original URL</span>
+        <span class="stat-value"><%= stats.original_url %></span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Created</span>
+        <span class="stat-value"><%= new Date(stats.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) %></span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Last Clicked</span>
+        <span class="stat-value"><%= stats.last_clicked ? new Date(stats.last_clicked).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Never' %></span>
+      </div>
+      <% if (stats.expires_at) { %>
+      <div class="stat-row">
+        <span class="stat-label">Expires</span>
+        <span class="stat-value"><%= new Date(stats.expires_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) %></span>
+      </div>
+      <% } %>
+    </div>
+
+    <div class="actions">
+      <a href="<%= stats.short_url %>" target="_blank" class="action-btn">Visit URL</a>
+      <a href="/short?password=<%= password %>" class="action-btn">Create New</a>
+    </div>
+  </div>
+
+  <script>
+    function copyLink(url) {
+      navigator.clipboard.writeText(url).then(() => {
+        alert('Copied!');
+      });
+    }
+  </script>
+</body>
+</html>

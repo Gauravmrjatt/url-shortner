@@ -1,0 +1,27 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Short URL redirect - /s/{code}
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^s/(.+)$ redirect.php?code=$1 [L,QSA]
+
+    # API routes
+    RewriteRule ^api/shorten$ api/shorten.php [L,QSA]
+    RewriteRule ^api/stats$ api/stats.php [L,QSA]
+    RewriteRule ^api/list$ api/list.php [L,QSA]
+</IfModule>
+
+# Security - prevent directory listing
+Options -Indexes
+
+# Deny access to config and src
+<FilesMatch "(config|src)">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# PHP settings
+php_flag display_errors Off
+php_flag log_errors On

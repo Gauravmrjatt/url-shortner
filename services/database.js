@@ -7,10 +7,10 @@ class Database {
   }
 
   async connect() {
-    const uri = `mongodb://${process.env.DB_USER}:${process.env.DB_PASS}@${process.env.DB_HOST}:${process.env.DB_PORT || 27017}`;
+    const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017';
     this.client = new MongoClient(uri);
     await this.client.connect();
-    this.db = this.client.db(process.env.DB_NAME || 'urlshortner');
+    this.db = this.client.db();
     return this.db;
   }
 

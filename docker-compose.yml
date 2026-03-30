@@ -9,11 +9,7 @@ services:
       - "3001:3000"
     environment:
       PORT: 3000
-      DB_HOST: host.docker.internal
-      DB_PORT: 27017
-      DB_USER: 
-      DB_PASS: 
-      DB_NAME: urlshortner
+      MONGODB_URI: mongodb://host.docker.internal:27017
       BASE_URL: http://localhost:3001
       ADMIN_PASSWORD: Ahfhfhfwjejbf
       SHORT_CODE_LENGTH: 6

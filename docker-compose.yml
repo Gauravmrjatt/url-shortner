@@ -9,9 +9,7 @@ services:
       - "3001:3000"
     environment:
       PORT: 3000
-      MONGODB_URI: mongodb://host.docker.internal:27017/urlshortner
+      MONGODB_URI: mongodb://root:9pBKTIVwTz3ozw9MvIGktraus3VAGyy94cHTajMIvkI8BC5RQzAbDc7FUWteNrxn@n14h6o7asxvjungs94s2tna8:27017/url
       BASE_URL: http://localhost:3001
       ADMIN_PASSWORD: Ahfhfhfwjejbf
       SHORT_CODE_LENGTH: 6
-    extra_hosts:
-      - "host.docker.internal:host-gateway"

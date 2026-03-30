@@ -8,33 +8,12 @@ services:
     ports:
       - "3001:3000"
     environment:
-      DB_HOST: db
-      DB_USER: url_user
-      DB_PASS: url_password
-      DB_NAME: url_shortener
-      BASE_URL: http://localhost:3000
+      DB_HOST: host.docker.internal
+      DB_USER: sql_osmarmy_com
+      DB_PASS: 6858ce741b616
+      DB_NAME: sql_osmarmy_com
+      BASE_URL: http://localhost:3001
       ADMIN_PASSWORD: Ahfhfhfwjejbf
       SHORT_CODE_LENGTH: 6
-    depends_on:
-      - db
-    networks:
-      - urlshortner
-
-  db:
-    image: mysql:8.0
-    environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: url_shortener
-      MYSQL_USER: url_user
-      MYSQL_PASSWORD: url_password
-    volumes:
-      - ./sql/schema.sql:/docker-entrypoint-initdb.d/schema.sql
-      - mysql_data:/var/lib/mysql
-    networks:
-      - urlshortner
-
-networks:
-  urlshortner:
-
-volumes:
-  mysql_data:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

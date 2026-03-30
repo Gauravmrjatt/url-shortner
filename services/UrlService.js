@@ -1,5 +1,14 @@
-const { nanoid } = require('nanoid');
 const database = require('./database');
+
+const ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+
+function generateShortCode(length) {
+  let code = '';
+  for (let i = 0; i < length; i++) {
+    code += ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
+  }
+  return code;
+}
 
 class UrlService {
   constructor() {
@@ -21,7 +30,7 @@ class UrlService {
   }
 
   generateShortCode() {
-    return nanoid(this.codeLength);
+    return generateShortCode(this.codeLength);
   }
 
   async codeExists(shortCode) {

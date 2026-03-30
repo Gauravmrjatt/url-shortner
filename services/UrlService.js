@@ -1,4 +1,5 @@
-const database = require('./database');
+const Url = require('../models/Url');
+const ClickLog = require('../models/ClickLog');
 
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
@@ -34,16 +35,14 @@ class UrlService {
   }
 
   async codeExists(shortCode) {
-    const collection = await database.getCollection('urls');
-    const count = await collection.countDocuments({
+    const count = await Url.countDocuments({
       $or: [{ short_code: shortCode }, { custom_alias: shortCode }]
     });
     return count > 0;
   }
 
   async aliasExists(alias) {
-    const collection = await database.getCollection('urls');
-    const count = await collection.countDocuments({ custom_alias: alias });
+    const count = await Url.countDocuments({ custom_alias: alias });
     return count > 0;
   }
 
@@ -76,8 +75,7 @@ class UrlService {
     }
 
     try {
-      const collection = await database.getCollection('urls');
-      const urlDoc = {
+      const urlDoc = new Url({
         original_url: originalUrl,
         short_code: shortCode,
         custom_alias: customAlias || null,
@@ -86,9 +84,9 @@ class UrlService {
         expires_at: expiresAt ? new Date(expiresAt) : null,
         is_active: true,
         user_id: userId || null
-      };
+      });
       
-      await collection.insertOne(urlDoc);
+      await urlDoc.save();
       
       result.success = true;
       result.data = this.toApiArray(urlDoc);
@@ -100,28 +98,20 @@ class UrlService {
   }
 
   async getUrlByCode(shortCode) {
-    const collection = await database.getCollection('urls');
-    const url = await collection.findOne({
+    const url = await Url.findOne({
       $or: [{ short_code: shortCode }, { custom_alias: shortCode }]
     });
     return url ? this.toApiArray(url) : null;
   }
 
   async getUrlById(id) {
-    const collection = await database.getCollection('urls');
-    const { ObjectId } = require('mongodb');
-    const url = await collection.findOne({ _id: new ObjectId(id) });
+    const url = await Url.findById(id);
     return url ? this.toApiArray(url) : null;
   }
 
   async incrementClick(urlId) {
     try {
-      const collection = await database.getCollection('urls');
-      const { ObjectId } = require('mongodb');
-      await collection.updateOne(
-        { _id: new ObjectId(urlId) },
-        { $inc: { clicks: 1 } }
-      );
+      await Url.findByIdAndUpdate(urlId, { $inc: { clicks: 1 } });
       return true;
     } catch {
       return false;
@@ -130,10 +120,8 @@ class UrlService {
 
   async logClick(urlId, referer = null, userAgent = null, ipAddress = null) {
     try {
-      const collection = await database.getCollection('click_logs');
-      const { ObjectId } = require('mongodb');
-      await collection.insertOne({
-        url_id: new ObjectId(urlId),
+      await ClickLog.create({
+        url_id: urlId,
         clicked_at: new Date(),
         referer,
         user_agent: userAgent,
@@ -154,12 +142,7 @@ class UrlService {
       return result;
     }
 
-    const logsCollection = await database.getCollection('click_logs');
-    const { ObjectId } = require('mongodb');
-    const lastClick = await logsCollection.findOne(
-      { url_id: new ObjectId(url.id) },
-      { sort: { clicked_at: -1 } }
-    );
+    const lastClick = await ClickLog.findOne({ url_id: url.id }).sort({ clicked_at: -1 });
 
     result.success = true;
     result.data = {
@@ -176,18 +159,15 @@ class UrlService {
   }
 
   async getAllUrls(userId = null) {
-    const collection = await database.getCollection('urls');
     let query = {};
     if (userId) {
       query.user_id = userId;
     }
-    const cursor = collection.find(query).sort({ created_at: -1 }).limit(100);
-    const urls = await cursor.toArray();
+    const urls = await Url.find(query).sort({ created_at: -1 }).limit(100);
     return urls.map(url => this.toApiArray(url));
   }
 
   async searchUrls(search = '', limit = 10, offset = 0) {
-    const collection = await database.getCollection('urls');
     let query = {};
     if (search) {
       query.$or = [
@@ -195,13 +175,11 @@ class UrlService {
         { custom_alias: { $regex: search, $options: 'i' } }
       ];
     }
-    const cursor = collection.find(query).sort({ created_at: -1 }).skip(offset).limit(limit);
-    const urls = await cursor.toArray();
+    const urls = await Url.find(query).sort({ created_at: -1 }).skip(offset).limit(limit);
     return urls.map(url => this.toApiArray(url));
   }
 
   async getTotalUrls(search = '') {
-    const collection = await database.getCollection('urls');
     let query = {};
     if (search) {
       query.$or = [
@@ -209,14 +187,12 @@ class UrlService {
         { custom_alias: { $regex: search, $options: 'i' } }
       ];
     }
-    return await collection.countDocuments(query);
+    return await Url.countDocuments(query);
   }
 
   async deleteUrl(id) {
     try {
-      const collection = await database.getCollection('urls');
-      const { ObjectId } = require('mongodb');
-      await collection.deleteOne({ _id: new ObjectId(id) });
+      await Url.findByIdAndDelete(id);
       return true;
     } catch {
       return false;
@@ -225,7 +201,7 @@ class UrlService {
 
   toApiArray(url) {
     return {
-      id: url._id ? url._id.toString() : url.id,
+      id: url._id.toString(),
       original_url: url.original_url,
       short_code: url.short_code,
       custom_alias: url.custom_alias,

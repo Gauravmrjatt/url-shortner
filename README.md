@@ -1,47 +1,51 @@
 # URL Shortener
 
-A small URL shortener built on Express, MongoDB and server-rendered EJS views, with click analytics and a Docker setup.
+A small URL shortener on Express, MongoDB and EJS. Paste a link, get a short one, watch the clicks come in.
 
-## Features
+## What it does
 
-- Create short links from a web form
-- Redirect from `GET /s/:code` to the destination
-- **Click tracking** — every visit is recorded in a `ClickLog` collection
-- Per-link stats page
-- "My links" view for the links you created
-- Password-gated admin/management pages
+- Shorten a URL from a form or from `POST /api/shorten`
+- `GET /s/:code` resolves the code and redirects
+- Each redirect writes one click record, so the numbers stay exact rather than sampled
+- Per link stats page
+- A "my links" view for links you created
+- Management views behind a password
 - Runs with Docker Compose
+
+About 970 lines across 10 files: 8 routes, 2 collections.
+
+Short codes carry a unique index, so a redirect is a single lookup instead of a scan. Click records are indexed by link and by time, which keeps the stats queries cheap as the collection grows.
 
 ## Stack
 
-Node.js · Express · MongoDB (Mongoose) · EJS · Docker
+Node.js, Express, MongoDB via Mongoose, EJS, Docker.
 
-## Structure
+## Layout
 
 ```
 server.js           routes and app setup
 models/
   Url.js            short link documents
-  ClickLog.js       click events
+  ClickLog.js       one document per click
 services/
-  database.js       MongoDB connection
-  UrlService.js     link creation and lookup
-views/              EJS templates (index, login, my-links, short, stats)
+  database.js       Mongo connection
+  UrlService.js     create and resolve
+views/              EJS templates
 ```
 
 ## Routes
 
-| Method | Path | Purpose |
+| Method | Path | What it does |
 |---|---|---|
-| `GET` | `/` | Create a short link |
+| `GET` | `/` | Shorten form |
 | `GET` | `/my-links` | Links you created |
-| `GET` | `/short` | Shorten form |
+| `GET` | `/short` | Shorten page |
 | `POST` | `/short` | Submit a URL |
-| `GET` | `/stats` | Per-link click stats |
-| `GET` | `/s/:code` | Redirect and log the click |
-| `POST` | `/api/shorten` | JSON API for shortening |
+| `GET` | `/stats` | Per link stats |
+| `GET` | `/s/:code` | Redirect, and log the click |
+| `POST` | `/api/shorten` | JSON API |
 
-## Getting started
+## Run it
 
 ```bash
 npm install
@@ -50,7 +54,7 @@ npm install
 Create `.env` (do not commit it):
 
 ```env
-MONGO_URI=<your-mongodb-connection-string>
+MONGO_URI=<your-mongo-connection-string>
 BASE_URL=http://localhost:3000
 ADMIN_PASSWORD=<choose-a-strong-password>
 ```
@@ -59,20 +63,20 @@ ADMIN_PASSWORD=<choose-a-strong-password>
 npm run dev        # node server.js
 ```
 
-### With Docker
+With Docker:
 
 ```bash
 docker compose up
 ```
 
-## Environment variables
+## Environment
 
 | Variable | Purpose |
 |---|---|
-| `MONGO_URI` | MongoDB connection string (see `services/database.js`) |
+| `MONGO_URI` | Mongo connection string, see `services/database.js` |
 | `BASE_URL` | Origin used when building short links |
 | `ADMIN_PASSWORD` | Password for the management views |
 
----
+## Known issue
 
-> **Security note:** `server.js` falls back to a hardcoded password when `ADMIN_PASSWORD` is unset. Set the variable explicitly in every environment, and remove the literal fallback from the source.
+`server.js` falls back to a hardcoded password when `ADMIN_PASSWORD` is unset. Set the variable in every environment and delete the literal fallback.
